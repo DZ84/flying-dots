@@ -3,36 +3,25 @@
 
 Dennis Zethof - Februari 2018
 
-v0.4
+	v0.45
 
-NOTE: This version is setup to show that the collision
-detection works, and can be started and left alone indefinite.
-The code aims to handle collisiondetection independent of
-the amount of calculationcycles per second (main_loop_interval). 
-It checks for collisions, handles the one that occurs first up
-to the point of collision, calculates the effects, evaluates the 
-new situation, and then handles the resulting earliest next 
-collision.
+	NOTE: The main focus of this specific project is to get the 
+	collision detection algorithm right, this is a test setup,
+	and by all means not finished. It is not efficient enough,
+	and not without bugs. However, right now you can run it
+	for quite a while, and I've seen no dots leaving their box
+	or overlap eachother (except on their spawning area in the 
+	upper left corner, they overlap there at first). The goal is to 
+	let the box be fully filled with dots until none can be added. 
+	I have removed most of the comments because they would
+	clutter the code and where not written to be read by others.	
+	
+	Algorithms: this code scans all the dots, determines if there 
+	will be any collisions, performs the collision earliest in time, 
+	reevaluates the new situation caused by the collision, then
+	performs the next earliest collision, reevaluates etc.
+	
+	By default the amount of dots is set at 80, you can easily set
+	"settings_maximum_dots" to about 150. Ofcourse that may not run 
+	as smooth.
 
-By all means this code is not finished. It is too inefficient to
-do what it is supposed to: run until the box is fully filled 
-with dots. In order to achieve this a more efficient way of 
-collision detection must be employed; this version uses a mostly
-iterative process, so when set at .001, each potential collision
-will trigger a 1000 checks. A grid system is in place to limit
-the number of times the checking system is triggered, which is a
-sort of sweeping type of algorithm, but it it is not enough. It 
-should be done much more efficient AND much more precise by using 
-a collision detection method that relies more on mathematics.
-
-TODO: 
-
-   	- heavy refactoring
-    
-   	- change collision detection system
-    
-   	- add polynomial options
- 
-NICE TO HAVES:
-
-	  - rotation of objects

@@ -1,41 +1,33 @@
  <!DOCTYPE html>
 
+
 <!--
 
+	Dennis Zethof - Februari 2018
 
-Dennis Zethof - Februari 2018
+	v0.45
 
-v0.4
+	NOTE: The main focus of this specific project is to get the 
+	collision detection algorithm right, this is a test setup,
+	and by all means not finished. It is not efficient enough,
+	and not without bugs. However, right now you can run it
+	for quite a while, and I've seen no dots leaving their box
+	or overlap eachother (except on their spawning area in the 
+	upper left corner, they overlap there at first). The goal is to 
+	let the box be fully filled with dots until none can be added. 
+	I have removed most of the comments because they would
+	clutter the code and where not written to be read by others.	
+	
+	Algorithms: this code scans all the dots, determines if there 
+	will be any collisions, performs the collision earliest in time, 
+	reevaluates the new situation caused by the collision, then
+	performs the next earliest collision, reevaluates etc.
+	
+	By default the amount of dots is set at 80, you can easily set
+	"settings_maximum_dots" to about 150. Ofcourse that may not run 
+	as smooth.
 
-NOTE: This version is setup to show that the collision
-detection works, and can be started and left alone indefinite.
-The code aims to handle collisiondetection independent of
-the amount of calculationcycles per second (main_loop_interval). 
-It checks for collisions, handles the one that occurs first up
-to the point of collision, calculates the effects, evaluates the 
-new situation, and then handles the resulting earliest next 
-collision.
-
-By all means this code is not finished. It is too inefficient to
-do what it is supposed to: run until the box is fully filled 
-with dots. In order to achieve this a more efficient way of 
-collision detection must be employed; this version uses a mostly
-iterative process, so when set at .001, each potential collision
-will trigger a 1000 checks. A grid system is in place to limit
-the number of times the checking system is triggered, which is a
-sort of sweeping type of algorithm, but it it is not enough. It 
-should be done much more efficient AND much more precise by using 
-a collision detection method that relies more on mathematics.
-
-TODO: 
-   	- heavy refactoring
-   	- change collision detection system
-   	- add polynomial options
- 
-NICE TO HAVES:
-	- rotation of objects
 -->
-
 
 <html>
 	<head>
@@ -55,6 +47,14 @@ NICE TO HAVES:
 				background: white;
             }
 
+			#my_canvas {
+				position: absolute; 
+                width: 500px;
+                height: 500px;
+				background: white;
+            }
+
+
 			#timer_div {
 				position: absolute;
 				bottom: 0; 
@@ -72,54 +72,54 @@ NICE TO HAVES:
 
 			// set options/constants
 			var main_loop_interval = 35				// in milliseconds
-			//var loops_per_new_dot = 70		
-			var dots_per_second = 0.4
+			var dots_per_second = 0.2
 			var circle_resolution = 20				// 2pi/circle_res
-			var starting_point = {x: 40, y: 40}
+			var starting_point = {x: 45, y: 45}
 
+			var settings_decimals_increment = 9
+			var settings_decimals_calculations = 8
+			var settings_maximum_dots = 80
 
-			var settings_decimals_increment = undefined	
-			// TODO: this should be under options I guess.
-			var settings_decimals_calculations = 9
-			var settings_maximum_dots = 10
-
-			// grid system
 			var section_size = {x: 20, y: 20}		// in pixels
-
-			var incr_steps = 0.001
-
 			var dots = []							// for debug purposes defined as global
 			var grid_positions = []					// for debug purposes defined as global
 			var collision_storage = []
 
 			var demo_mode = true
-			// debug options
 			var debug_main_loop_counter = 0
+			var whilecounter = 0	
 			var debug = false						// general debug mode
 			var debug_coll = false					// debug mode for setting up collision det
 			var debug_check_list = []
 			var debug_timer_tracker = 0
 			var debug_timer = 4.50					// seconds
 			var debug_timer_steps = 100			// miliseconds
+			var debug_specific = false 
+			var debug_showstoppers = false
+
             window.onload = function() { 
 				var loops_before_new_dot = Math.round(dots_per_second/(main_loop_interval/1000))
-				debugger
+							
+				if (debug) {
+					test_find_collision()
+				}
+
 				var loops_since_new_dot = loops_before_new_dot-1
 				var new_dot_id = 0
-				//var dots = []	
-				//var grid_positions = []
-				//var collision_storage = []
-			
-				// some setting that needs to be done
-				set_increment_decimals()
-				
 				var border_objects = [] 
 				var grid_border_positions = []
 				get_set_border_objects(border_objects)
 				set_border_positions(grid_border_positions, border_objects)
 				
-				var main_loop = setInterval(function() {
+				if (debug) {
+					var interval = setInterval(function() {
+						debug_timer_tracker = (Math.round((debug_timer_tracker + (debug_timer_steps/1000)) * 10) / 10)
+						var timer_string = debug_timer_tracker.toFixed(2)
+						document.getElementById("timer_div").innerHTML = timer_string
+					}, debug_timer_steps)
+				}
 
+				var main_loop = setInterval(function() {
 					if (debug) {
 						debug_main_loop_counter++
 					}
@@ -130,35 +130,128 @@ NICE TO HAVES:
 						dots.push(new_dot)
 						loops_since_new_dot = 0
 					}	
+
+					if (debug_specific) {
+						if (dots.length<settings_maximum_dots) {
+							return
+						}
+					}
       
 					for (var d=0;d<dots.length;d++) {
 						dots[d].determine_next_coords()
 						dots[d].manage_sections_setting()
 					}
 
-					add_grid_border_positions(grid_positions, grid_border_positions)
-					manage_grid_positions(grid_positions, dots)
+					if (debug) {
+						if (debug_main_loop_counter>1901) {
+
+						}
+					}
+
+					grid_add_border_positions(grid_positions, grid_border_positions)
+					grid_add_dot_positions(grid_positions, dots)
+					grid_sort_positions(grid_positions)
 
 					find_collisions(collision_storage, grid_positions)
-					sort_collision_storage(collision_storage)
-
+					sort_collision_time(collision_storage)
 					var processed_collisions = false
+						
 					while (!processed_collisions) {
 
+						if (debug) {
+							whilecounter++
+							console.log("debug main counter" + debug_main_loop_counter)		
+							console.log("whilecounter: " + whilecounter)
+							
+							if (debug_main_loop_counter>-1) {
+								if (collision_storage.length>0) {
+									console.log(collision_storage[0].obj_1.id + " | " + 
+												collision_storage[0].obj_2.id + " | " + 
+												collision_storage[0].incr)
+									console.log("increments: " + collision_storage[0].obj_1.increment + 
+														 " | " + collision_storage[0].obj_2.increment)
+
+
+								}
+
+							}
+							if (whilecounter>30000) {
+
+							}
+
+						}
+						
 						processed_collisions = manage_collision(grid_positions, collision_storage)
+
 					}
 
 					for(var d=0; d<dots.length; d++) {
 						dots[d].set_coords()
 						dots[d].move()
-						dots[d].increment = 0		// this should be reset inside the class
+						dots[d].increment = 0
 					}
 
+					if (debug_showstoppers) {
+						test_overlap_all_dots(dots) 
+					}
+
+					whilecounter = 0
 					grid_positions = []
 					collision_storage = []
 
 				}, main_loop_interval)
 			
+			}
+
+			function test_overlap_all_dots(dots) {
+				if (dots.length<settings_maximum_dots) {
+					return
+				}
+
+				for(var d=0;d<dots.length-1;d++) {
+					for(var dd=d+1;dd<dots.length;dd++) {
+						var dx = (dots[dd].coords_theory.x - dots[d].coords_theory.x)**2
+						var dy = (dots[dd].coords_theory.y - dots[d].coords_theory.y)**2
+						var dist = (dx+dy)**(1/2)
+						var dist_norm = dots[d].radius + dots[dd].radius
+						if (dist<(dist_norm*.95)) {
+							alert("shit has gone down:\n\n" +	
+								  "        significant overlap of dots")
+							debugger
+						}
+					}
+				}
+				return
+			}
+
+			function check_dots_going_outside(dot) {
+				if (dot.coords.x>500-dot.radius 
+				 || dot.coords.y>500-dot.radius
+				 || dot.coords.x<0+dot.radius 
+				 || dot.coords.y<0+dot.radius) {
+					console.log(dot.coords.x + " | " + dot.coords.y)
+					alert("shit has gone done:\n\n" +
+						  "        dot is going outside of border")
+					debugger
+				}
+				return
+			}
+
+			function check_overlap(dot_1, dot_2) {
+
+
+				if (dot_1 instanceof Dot && dot_2 instanceof Dot) {
+					var dx = round_calc_general(dot_1.coords_theory.x - dot_2.coords_theory.x)
+					var dy = round_calc_general(dot_1.coords_theory.y - dot_2.coords_theory.y)
+					var c = round_calc_general((round_calc_general(dx**2) + round_calc_general(dy**2))**(1/2))
+					
+					var min_distance = round_calc_general(dot_1.radius + dot_2.radius)
+					if (c<(min_distance)) {
+
+					}
+				}
+
+				return
 			}
 
 			function manage_collision(grid_positions, collision_storage) {
@@ -168,12 +261,36 @@ NICE TO HAVES:
 				}
 				
 				var info = get_next_collision_info(collision_storage)
+			
+				if (debug) {
+					if (info.obj_1==info.obj_2) {
+						// somehow a collision between a dot and
+						// itself would have been registered.
+						// error..
+						debugger
+					}
+				}
 
 				process_collision(info)	
 				process_objects(info) 
 				process_grid_positions(grid_positions, info)
 				process_collision_storage(collision_storage, grid_positions, info)
 
+				if (debug) {
+						check_overlap(info.obj_1, info.obj_2)
+				}
+
+				if (debug) {
+					try {
+						if ((info.obj_1.coords.x>480  || info.obj_1.coords.y>480) 
+						 || (info.obj_2.coords.x>480  || info.obj_2.coords.y>480)) {
+				//			
+						}
+					} catch (err) {
+
+					}
+				}
+				
 				return (collision_storage.length==0)
 			}
 
@@ -181,7 +298,7 @@ NICE TO HAVES:
 
 				clean_collision_storage(collision_storage, info)
 				find_collisions(collision_storage, grid_positions, info)
-				sort_collision_storage(collision_storage)
+				sort_collision_time(collision_storage)
 
 				return
 			}
@@ -199,11 +316,12 @@ NICE TO HAVES:
 				
 				remove_old_grid_positions(grid_positions, [info.obj_1, info.obj_2])
 			
-				// make sure only dots are entered in manage_grid_positions	
+				// make sure only dots are entered in grid_positions	
 				var dots_to_add = []
 				select_dots(dots_to_add, info)
 
-				manage_grid_positions(grid_positions, dots_to_add)
+				grid_add_dot_positions(grid_positions, dots_to_add)
+				grid_sort_positions(grid_positions)
 
 				return
 			}
@@ -232,13 +350,13 @@ NICE TO HAVES:
 
 			function process_collision(info) {
 				// NOTE: this is a 1-2 between coords_theory and
-				// next_coords_theory. This collision has been
+				// next_coords_theory. This collision has been set
 				// as next one so next coords will be used icw
 				// the incr to set the new coord. The new course
 				// will then be determined, incl. the tracking
 				// of that collision, and then icw the new course
 				// a new next coord will be determined icw the
-				// remaining incr value.	
+				// remaining incr value.
 				var [obj_1, obj_2, incr] = [info.obj_1, info.obj_2, info.incr]
 
 				set_coll_coordinates(obj_1, incr)
@@ -246,7 +364,7 @@ NICE TO HAVES:
 				handle_object_movement(obj_1)
 				handle_object_movement(obj_2)
 				
-				write_collision(obj_1, obj_2, incr) 
+				choose_new_course_calculation(obj_1, obj_2, incr) 
 
 				set_next_coordinates(obj_1)		
 				set_next_coordinates(obj_2)		
@@ -263,7 +381,6 @@ NICE TO HAVES:
 			}
 
 			function create_redo_list(obj_1, obj_2) {
-				// TODO: redo_list is not ordered, but it's always a very small list
 				var redo_list = []
 					
 				if (obj_1 instanceof Dot) {
@@ -305,16 +422,10 @@ NICE TO HAVES:
 
 			function clean_collision_storage(collision_storage, info) {
 
-				if (debug) {
-					if (debug_main_loop_counter>669) {
-						
-					}
-				}
 
 				var cl = 0
 				while (cl<collision_storage.length) {
 					var cl_st = collision_storage[cl]
-
 					if (cl_st.obj_1 instanceof Dot && cl_st.obj_2 instanceof Dot) {
 						if (cl_st.obj_1===info.obj_1 || cl_st.obj_1===info.obj_2) { 
 							collision_storage.splice(cl, 1)
@@ -334,12 +445,6 @@ NICE TO HAVES:
 							continue
 						}
 					}
-					
-					if (debug) {
-						if (cl>150) {
-							
-						}
-					}
 
 					cl++	
 				}
@@ -349,7 +454,6 @@ NICE TO HAVES:
 			function set_coll_coordinates(obj, incr) {
 
 				if (obj instanceof Dot) {
-						
 					obj.coords_theory.x = round_calc_general(obj.coords_theory.x + (obj.course.x * (incr-obj.increment)))
 					obj.coords_theory.y = round_calc_general(obj.coords_theory.y + (obj.course.y * (incr-obj.increment))) 
 
@@ -378,11 +482,13 @@ NICE TO HAVES:
 				// process crash.
 				// NOTE: when value is >= 1000000000000 is also produces
 				// NaN, don't know why though. This also: 999999999999.99999, 
-				// because js rounds that up (too many digits?).
+				// because js rounds that up. (too many digits?), but this
+				// number: -1.2246467991473532e-16, is fine to enter				
+				
 				if (value<.000001) {
 					// NOTE: decimal buffer is to ensure this method does not
 					// determine the actual rounding. The number specified
-					// however is not determined by any theory.
+					// however is arbitrary.
 					var decimal_buffer = 6
 					value = Number(value).toFixed(decimals+decimal_buffer).replace(/\.?0+$/,"")
 				} else if (value>=1000000000000) {
@@ -394,21 +500,6 @@ NICE TO HAVES:
 				}
 
 				return Number(Math.round(value+"e"+decimals)+"e-"+decimals)
-			}
-
-			function set_increment_decimals() {
-
-				var calculation = 0	
-				var p = -1
-				var multiplier = undefined
-				while (Math.round(calculation)==0) {
-					p++
-					multiplier = 10**p	
-					calculation = multiplier*incr_steps
-				}
-
-				settings_decimals_increment = p
-				return
 			}
 
 			function handle_object_movement(obj) {
@@ -430,7 +521,7 @@ NICE TO HAVES:
 				return
 			}
 
-			function add_grid_border_positions(grid_positions, grid_border_positions) {
+			function grid_add_border_positions(grid_positions, grid_border_positions) {
 				
 				for (var gb=0;gb<grid_border_positions.length;gb++) {
 					grid_positions.push(grid_border_positions[gb])
@@ -439,15 +530,14 @@ NICE TO HAVES:
 				return
 			}
 
-			function manage_grid_positions(grid_positions, objects_to_add) {
-
+			function grid_add_dot_positions(grid_positions, objects_to_add) {
+				
 				for (var d=0;d<objects_to_add.length;d++) {
 					for (var gs=0;gs<objects_to_add[d].grid_spots.length;gs++) {
 						grid_positions.push(objects_to_add[d].grid_spots[gs])
 					}
 				}
 
-				sort_grid_positions(grid_positions)
 				return
 			}
 
@@ -494,7 +584,15 @@ NICE TO HAVES:
 						var redo_position = check_redo_position(grid_positions[gp], redo_info["redo_list"])
 					}
 					
-					// find matches
+					if (debug) {
+						if (debug_main_loop_counter==276) {
+							if (grid_positions[gp]["x"]==13 && grid_positions[gp]["y"]==2) {
+
+							}
+						}
+					}
+
+					// find a double
 					if (grid_positions[gp]["x"]==grid_positions[gp+1]["x"]
 					 && grid_positions[gp]["y"]==grid_positions[gp+1]["y"]) {
 						var store_section = {x: grid_positions[gp]["x"], 
@@ -510,6 +608,13 @@ NICE TO HAVES:
 						if (redo_info["redo_mode"]) {
 							if (!redo_position) {
 								continue
+							}
+						}
+
+						if (debug) {
+							var id = store_section.objects_present[0].id
+							if (debug_main_loop_counter>351 && (id==4 || id==5)) {
+
 							}
 						}
 
@@ -591,15 +696,12 @@ NICE TO HAVES:
 								continue
 							}	
 
-							// TODO: this is set after determining whether one is a
-							// border, so requesting the increments should be fine.
 							if (obj_list[dl].increment==1 || obj_list[dl_2].increment==1) {
 								continue
 							}
 						}
 	
 						var result = choose_collision_calculation(obj_list[dl], obj_list[dl_2])
-						
 						checked_this_round.push({obj_1: obj_list[dl], obj_2: obj_list[dl_2]})
 
 						if (result.found) {
@@ -626,9 +728,7 @@ NICE TO HAVES:
 			}
 
 			function already_in_collision_storage(obj_1, obj_2, collision_storage) {
-
 				for (var cs=0;cs<collision_storage.length;cs++) {
-
 					if (collision_storage[cs].obj_1===obj_1 
 					 || collision_storage[cs].obj_1===obj_2) {
 
@@ -643,6 +743,8 @@ NICE TO HAVES:
 
 			function check_add_result(collision_storage, log) {
 				
+				// TODO: seems this whole thing can go, because is 
+				// already done by "checked this round" list.
 				for (var cs=0;cs<collision_storage.length;cs++) {
 
 					if (collision_storage[cs].obj_1===log.obj_1 
@@ -651,7 +753,6 @@ NICE TO HAVES:
 						if (collision_storage[cs].obj_2===log.obj_1 
 					     || collision_storage[cs].obj_2===log.obj_2) {
 							return
-
 						}
 					}
 				}
@@ -660,323 +761,524 @@ NICE TO HAVES:
 			}
 
 			function choose_collision_calculation(obj_1, obj_2) {
-				// NOTE: this assumes there cannot be two intersecting bordersections.
-				// There should not be any doubles, so should be ok.
-				// but they're also coincidently filtered out by the previous function.
-				// TODO: not the correct name for a function
 				if (obj_1 instanceof Dot && obj_2 instanceof Dot) {
-					var result = find_collision_dots(obj_1, obj_2)
+					var result = find_collision_dots_5(obj_1, obj_2)
 				} else {
-					var result = find_collision_border(obj_1, obj_2)
+					var result = find_collision_border_2(obj_1, obj_2)
 				}
 				
 				return result	
 			}
-		
-			function find_collision_border(obj_1, obj_2) {
-			
-				if (!(obj_1 instanceof Dot)) {
-					var temp = obj_1
-					obj_1 = obj_2
-					obj_2 = temp
-				}
 
-				var border = {}
-				// is done also when creating the border objects, these comparisons
-				// should not be made here. And are done doubly.
-				if (obj_2.start.x<obj_2.end.x) {
-					border.start = obj_2.start
-					border.end = obj_2.end	
-				} else if (obj_2.start.x==obj_2.end.x) {
-					if (obj_2.start.y>obj_2.end.y) {
-						border.start = obj_2.end
-						border.end = obj_2.start
-					} else {
-						border.start = obj_2.start
-						border.end = obj_2.end	
-					}
-				} else {
-					border.start = obj_2.end
-					border.end = obj_2.start
-				}
+			function test_find_collision () {
+				// NOTE: for debug mode
 
+				var dot_1 = {coords_theory: {}, course: {}}	
+				var dot_2 = {coords_theory: {}, course: {}}	
+
+				dot_1.coords_theory.x = 0
+				dot_1.coords_theory.y = 4	
+				dot_1.course.x = 1
+				dot_1.course.y = -(1/3) 
+				dot_1.radius = 0.5
+				dot_1.increment = 0
+
+				dot_2.coords_theory.x = 0
+				dot_2.coords_theory.y = -1	
+				dot_2.course.x = 1
+				dot_2.course.y = 1
+				dot_2.radius = 0.5
+				dot_2.increment = 0
+
+				find_collision_dots_5(dot_1, dot_2)
+
+				dot_1.coords_theory.x = 1
+				dot_1.coords_theory.y = 4	
+				dot_1.course.x = 4
+				dot_1.course.y = 2 
+				dot_1.radius = 0.5
+				dot_1.increment = 0
+
+				dot_2.coords_theory.x = 3.5
+				dot_2.coords_theory.y = 1	
+				dot_2.course.x = -1
+				dot_2.course.y = 6
+				dot_2.radius = 0.5
+				dot_2.increment = 0
+
+				find_collision_dots_5(dot_1, dot_2)
+				
+				dot_1.coords_theory.x = 1
+				dot_1.coords_theory.y = 6	
+				dot_1.course.x = 4
+				dot_1.course.y = -2 
+				dot_1.radius = 0.5
+				dot_1.increment = 0
+
+				dot_2.coords_theory.x = 2.5 
+				dot_2.coords_theory.y = 1	
+				dot_2.course.x = 1
+				dot_2.course.y = 6
+				dot_2.radius = 0.5
+				dot_2.increment = 0
+
+				find_collision_dots_5(dot_1, dot_2)
+
+			}
+
+			function check_a_result(dot_1, dot_2, pt) {
+				// NOTE: for debug mode
+
+				var xn1 = dot_1.coords_theory.x + dot_1.course.x * pt
+				var yn1 = dot_1.coords_theory.y + dot_1.course.y * pt
+				var xn2 = dot_2.coords_theory.x + dot_2.course.x * pt
+				var yn2 = dot_2.coords_theory.y + dot_2.course.y * pt
+
+				var diff = round_calc_general((round_calc_general((xn1-xn2)**2) + round_calc_general((yn1-yn2)**2))**(1/2))
+				var required = dot_1.radius + dot_2.radius	
+				console.log("diff: " + diff)
+				console.log("required: " + required)
+
+				return
+			}
+
+			function find_collision_dots_5(dot_1, dot_2) {
+				
 				if (debug) {
-					if (debug_main_loop_counter>184) {
-						if (obj_1.id==3 && obj_2.side=="ceiling") {
-							
+
+					function print_stuff(dot) {
+						console.log("dot_id: " + dot.id + "\n" +
+									"d1 course x: " + dot.course.x + "\n" +
+									"d1 course y: " + dot.course.y + "\n" 
+									)	
+					}
+
+					if ((dot_1.id==2 && dot_2.id==5) || (dot_1.id==5 && dot_2.id==2)) {
+						if (debug_main_loop_counter>4227) {
+							print_stuff(dot_1)
+							print_stuff(dot_2)
+
 						}
 					}
+
+					if (dot_1.course.y==0 || dot_2.course.y==0) {
+						debugger
+					}
 				}
 
-				var result = {found: false, log: undefined}
-				var checked = {}
-				// check if current position already has a collision type of state (=overlap)
-				checked = check_intersection_border(obj_1.coords_theory, border, obj_1.radius)
-				var distance_earlier = checked.distance
-
-				var course_next = {}
-
-				var course_left_obj_1_x = round_calc_general((1-obj_1.increment) * obj_1.course.x)
-				var course_left_obj_1_y = round_calc_general((1-obj_1.increment) * obj_1.course.y)
-
-				var incr_course_x = round_calc_general(obj_1.course.x * incr_steps)
-				var incr_course_y = round_calc_general(obj_1.course.y * incr_steps)
-
-				var course_increase_x = round_calc_general(incr_course_x)
-				for (var steps=1;Math.abs(course_increase_x)<Math.abs(course_left_obj_1_x);steps++) {
-					
-					var course_increase_x = round_calc_general(steps * incr_course_x)
-					var course_increase_y = round_calc_general(steps * incr_course_y)
-
-					course_next.x = round_calc_general(obj_1.coords_theory.x + course_increase_x)
-					course_next.y = round_calc_general(obj_1.coords_theory.y + course_increase_y)
-					checked = check_intersection_border(course_next, border, obj_1.radius) 
-
-					if (checked.distance>distance_earlier) {
-						// TODO: this method may not be fullproof, especially with higher speeds
-						// you can come up with scenario's where a collision should be
-						// detected but isn't because of this.
-						return result
-					} else if (checked.collision) {
-
-						var incr = steps * incr_steps
-						var total_incr = check_round_incr(obj_1.increment + incr) 
-						
-						var result = {found: true, log: {incr: total_incr,
-														 obj_1: obj_1,
-														 obj_2: obj_2}
-									 }	
-						return result
-
-					} 
-
-					distance_earlier = checked.distance
-
-				}
-				
-				// do with increment at 100%
-				course_next.x = obj_1.next_coords_theory.x
-				course_next.y = obj_1.next_coords_theory.y
-
-				checked = check_intersection_border(course_next, border, obj_1.radius)
-				if (checked.collision) {
-						var result = {found: true, log: {incr: 1.00,
-														 obj_1: obj_1,
-														 obj_2: obj_2}
-									 }	
-						return result
-				}	
-
-				return result
-			}
-
-
-			function check_intersection_border(course_next, border, object_radius) {
-		
-				var d1_x = course_next.x - border.start.x
-				var d1_y = course_next.y - border.start.y
-
-				// get normal of border:
-				// get vector of border
-				var d2_x = border.end.x - border.start.x
-				var d2_y = border.end.y - border.start.y
-
-				// get border angle
-				//		inv-tan(d2_x/d2_y)	
-				var border_angle = Math.atan2(-d2_y, d2_x)
-
-				// TODO: does not always turn to the correct side, but not a problem.
-				// can go for absolute size of projection and see is and how far the
-				// dot is within area, maybe also do that with projection.
-				var dn_angle_x = Math.cos(border_angle+(-0.5*Math.PI))
-				var dn_angle_y = Math.sin(border_angle+(-0.5*Math.PI))
-
-				var d1_magnitude = (d1_x**2 + d1_y**2)**(1/2)	 
-				var d2_magnitude = (d2_x**2 + d2_y**2)**(1/2)	
-
-				var dn_x = d2_magnitude * dn_angle_x
-				var dn_y = d2_magnitude * dn_angle_y
-
-				// angle between two vectors, vector of dot and vector of border:
-				// dot product
-				var dp_12 = (d1_x * d2_x) + (d1_y * d2_y)
-				var db_angle = Math.acos(dp_12 / (d1_magnitude * d2_magnitude) )
-
-				// angle between normal of border and vector of dot
-				var dv_angle = (-0.5*Math.PI) - db_angle
-
-				// projection of vector of dot on the normal of border
-				// which is the distance between dot (center) and border:
-				var d_db = d1_magnitude * Math.cos(dv_angle) 
-
-				var found = {}
-				//found.collision = (Math.abs(d_db)<=object_radius)
-				found.distance = Math.abs(d_db)
-
-				if (found.distance<object_radius) {	
-					found.collision = true
-				} else {
-					found.collision = false
-				}
-
-				return found
-			}
-
-
-			function find_collision_dots(obj_1, obj_2) {
-				
 				function determine_earliest_object() {
-					
-					if (obj_1.increment>obj_2.increment) {
-						var obj_temp = obj_1
-						obj_1 = obj_2
-						obj_2 = obj_temp
+					if (dot_1.increment>dot_2.increment) {
+						var dot_temp = dot_1
+						dot_1 = dot_2
+						dot_2 = dot_temp
 					}
 				}
 				
 				determine_earliest_object()
-	
-				var o1_incr_todo = round_calc_general(1-obj_1.increment)
-				// var o2_incr_todo = 1-obj_2.increment
 
-				var o1_behind_prop_total = round_calc_general(obj_2.increment - obj_1.increment) //o1_incr_todo-o2_incr_todo
-				var o1_behind_proportion_of_todo = round_calc_general(o1_behind_prop_total / o1_incr_todo)
+				var incr_diff = check_round_incr(dot_2.increment - dot_1.increment)
+				var dot_1_bump_x = round_calc_general(dot_1.course.x * incr_diff)
+				var dot_1_bump_y = round_calc_general(dot_1.course.y * incr_diff)
+				var dot_1_x = round_calc_general(dot_1.coords_theory.x + dot_1_bump_x)
+				var dot_1_y = round_calc_general(dot_1.coords_theory.y + dot_1_bump_y)
 				
-				var o1_starting_incr_new = obj_2.increment
-				var o1_course_left_todo_x = round_calc_general(obj_1.course.x * (1-o1_starting_incr_new))
+				var k1a = round_calc_general(dot_1_x**2 + dot_2.coords_theory.x**2) 
+				var k1b = round_calc_general(-2 * dot_1_x * dot_2.coords_theory.x)
+				var k1 = round_calc_general(k1a + k1b)
+				var w1 = round_calc_general(dot_1.course.x - dot_2.course.x)
+				var q1a = round_calc_general(2 * dot_1_x * w1)
+				var q1b = round_calc_general(2 * dot_2.coords_theory.x * w1)
+				var q1 = round_calc_general(q1a - q1b)
 
-				var o1_course_steps_x = round_calc_general(obj_1.course.x * incr_steps)
-				var o1_course_steps_y = round_calc_general(obj_1.course.y * incr_steps)
-				var o2_course_steps_x = round_calc_general(obj_2.course.x * incr_steps)
-				var o2_course_steps_y = round_calc_general(obj_2.course.y * incr_steps)
+				var k2a = round_calc_general(dot_1_y**2 + dot_2.coords_theory.y**2) 
+				var k2b = round_calc_general(-2 * dot_1_y * dot_2.coords_theory.y)
+				var k2 = round_calc_general(k2a + k2b)
+				var w2 = round_calc_general(dot_1.course.y - dot_2.course.y)
+				var q2a = round_calc_general(2 * dot_1_y * w2) 
+				var q2b = round_calc_general(2 * dot_2.coords_theory.y * w2)
+				var q2 = round_calc_general(q2a - q2b)
 
-				var o1_course_timebump_x = round_calc_general(o1_behind_prop_total * obj_1.course.x) // o1_course_left_todo_x * o1_behind_proportion_of_todo 
-				var o1_course_timebump_y = round_calc_general(o1_behind_prop_total * obj_1.course.y) // o1_course_left_todo_y * o1_behind_proportion_of_todo 
+				var c_sq = round_calc_general((round_calc_general(dot_1.radius + dot_2.radius))**2)
 
-				//TODO: maximum size maybe half a pixel?
-				//		minimum.... incr_steps/100?
-				// maybe a maximum stepsize?
-				// arbitrary rule:
-				// var max_step_size = this.radius/2	
+				var wt = round_calc_general(w1**2 + w2**2)
+				var qt = round_calc_general(q1 + q2)
+				var kt = round_calc_general(k1 + k2 - c_sq)
+
+				// abc formula:
+				var a = wt
+				var b = qt
+				var c = kt
+
+				if (debug) {
+					if (a==0) {
+						// error...
+						console.log("error: a==0")
+						debugger
+					}
+				}
 				
-				//if (o1_course_steps_x>max_step_size 
-				// || o1_course_steps_y>max_step_size
-				// || o2_course_steps_x>max_step_size
-				// || o2_course_steps_y>max_step_size) {
-				//	
-				//	// not yet implemented
-				//}
+				// discriminant of kwadratic formula	
+				var d = round_calc_general(b**2 - (4 * a * c))
 
-				var o1_pos_x = undefined
-				var o1_pos_y = undefined
-                var o2_pos_x = undefined
-                var o2_pos_y = undefined
-				var o1_step_x = o1_course_steps_x
-				var d_sq = undefined
+				if (d<0) {
+					return {found: false, log: undefined}
+				}
+				
+				var d_sqrt = round_calc_general(d**(1/2))
+				var a2 = 2 * a
+				var pt_1 = check_round_incr((-b + d_sqrt) / a2) 
+				var pt_2 = check_round_incr((-b - d_sqrt) / a2) 
 
-				function collision_criteria(d_x, d_y, d_r) {
-					// TODO: does not detect when one circle is completely inside another
-					// which should never happen..
-					d_sq = (d_x * d_x) + (d_y * d_y)
-					if ( d_sq <= (d_r * d_r) ) {
-						return true
+				if (debug) {
+					if (false) {
+						console.log("-------")
+						console.log("should be fine: " + pt_1 + " | " + pt_2)
+						console.log("discriminant: " + d)
+
+						console.log("   check results 1... ")
+						check_a_result(dot_1, dot_2, pt_1)
+						console.log("   check results 2... ")
+						check_a_result(dot_1, dot_2, pt_2)
+					}
+				}
+
+				function check_validity(pt_1, pt_2, max_increment) {
+				
+					// means they would go in the wrong direction for
+					// them to be in a collision. Most likely they were
+					// just in a collision, OR there was just some
+					// overlap due to rounding
+					if (pt_1 < 0 || pt_2 < 0) {
+						return [false, false]
 					}
 
-					return false
-				}
-
-				function step_collision_check(steps) {
+					var first_valid = second_valid = false
+				
+					// first part of if statement is important when two collisions 
+					// takes place at the same increment	
+					if (pt_1 >= 0 && pt_1 <= max_increment) {
+						first_valid = true
+					}
 					
-					o1_step_x = round_calc_general(steps * o1_course_steps_x)
+					if (pt_2 >= 0 && pt_2 <= max_increment) {
+						second_valid = true
+					}
 
-					o1_pos_x = (obj_1.coords_theory.x + o1_course_timebump_x + o1_step_x)
-					o1_pos_y = (obj_1.coords_theory.y + o1_course_timebump_y + (steps*o1_course_steps_y))
-					o2_pos_x = (obj_2.coords_theory.x + (steps*o2_course_steps_x))
-					o2_pos_y = (obj_2.coords_theory.y + (steps*o2_course_steps_y))
-
-					var d_x = round_calc_general(o2_pos_x - o1_pos_x)
-					var d_y = round_calc_general(o2_pos_y - o1_pos_y)
-					var d_r = round_calc_general(obj_1.radius + obj_2.radius)
-
-					return collision_criteria(d_x, d_y, d_r)
+					return [first_valid, second_valid]
 				}
 				
-				function final_collision_check() {
-					
-					var d_x = round_calc_general(obj_2.next_coords_theory["x"] - obj_1.next_coords_theory["x"])
-					var d_y = round_calc_general(obj_2.next_coords_theory["y"] - obj_1.next_coords_theory["y"])
-					var d_r = round_calc_general(obj_1.radius + obj_2.radius)
+				var max_increment = check_round_incr(1-dot_2.increment)	
+				var [first_valid, second_valid] = check_validity(pt_1, pt_2, max_increment)
 
-					return collision_criteria(d_x, d_y, d_r)
+				if (first_valid && second_valid) {
+					var pt = Math.min(pt_1, pt_2)
+				} else if (first_valid) {
+					var pt = pt_1
+				} else if (second_valid) {
+					var pt = pt_2
+				} else {
+					return {found: false, log: undefined}
 				}
 
-				function calculate_result_on_increment(steps) {
-					
-					var result_incr = steps*incr_steps
-					var incr_total = check_round_incr(obj_2.increment + result_incr)
+				var incr_total = check_round_incr(dot_2.increment + pt)
+				var result = {found: true, log: {incr: incr_total,
+												 obj_1: dot_1,
+												 obj_2: dot_2}
+							 }
 
-					return incr_total
+				if (debug) {
+					if (incr_total>1) {
+						//error..
+						debugger
+					}
+				}
+				return result
+			} 
+
+			function find_collision_border_2(obj_1, obj_2) {
+
+				var dot, border
+
+				if (obj_1 instanceof Dot) {
+					dot = obj_1
+					border = obj_2	
+				} else {
+					dot = obj_2
+					border = obj_1
+				}
+				
+				var border_normal = {}
+				border_normal.x = round_calc_general(border.end.y - border.start.y)
+				border_normal.y = round_calc_general(border.end.x - border.start.x)
+				
+				border_normal.length = (border_normal.x**2 + border_normal.y**2)**(1/2)
+				
+				border_normal.unit_x = border_normal.x / border_normal.length
+				border_normal.unit_y = border_normal.y / border_normal.length
+
+				// projection of starting position
+				var dot_origin_border_x = round_calc_general(dot.coords_theory.x - border.start.x)
+				var dot_origin_border_y = round_calc_general(dot.coords_theory.y - border.start.y)
+				var proj_starting_pos_a = round_calc_general(dot_origin_border_x * border_normal.unit_x) 
+				var proj_starting_pos_b = round_calc_general(dot_origin_border_y * border_normal.unit_y)
+				var proj_starting_pos = round_calc_general(proj_starting_pos_a + proj_starting_pos_b)
+	
+				var c = dot.radius
+
+				if (proj_starting_pos < 0) {
+					c = -c
+				}
+				
+				if (debug) {
+					if (dot.course.x==0 || dot.course.y==0) {
+						debugger
+					}
 				}
 
-				function bind_results(found, result_increment=0) {
+				var k1 = round_calc_general((dot.coords_theory.x) * border_normal.unit_x) 
+				var k2 = round_calc_general((dot.coords_theory.y) * border_normal.unit_y) 
+				var k3 = round_calc_general(-border.start.x * border_normal.unit_x)
+				var k4 = round_calc_general(-border.start.y * border_normal.unit_y)
+				var k = round_calc_general(k1 + k2 + k3 + k4) 
+				var u1 = round_calc_general(dot.course.x * border_normal.unit_x)
+				var u2 = round_calc_general(dot.course.y * border_normal.unit_y)
+				var u = round_calc_general(u1 + u2)
+
+				var k_coll = round_calc_general(k - c)
+				var k_after = round_calc_general(k + c)
+				
+				if (debug) {
+					if (u==0) {
+						debugger
+					}
+				}
+
+				var pt = check_round_incr(-k_coll/u)
+				var pt_after = check_round_incr(-k_after/u)
+
+				function check_validity(pt, pt_after, max_increment) {
+					if (pt > pt_after) {
+						return false
+					}
+					
 					if (debug) {
-						if (result_increment<0) {
-							// error
+						if (pt==pt_after) {
+							// error..?
 							debugger
 						}
 					}
 
-					if (found) {
-						return {found: true, log: {incr: result_increment,
-												   obj_1: obj_1,
-												   obj_2: obj_2}
-							   }
+					//pt < 0 = bad
+					//pt_after< 0 = bad
+					if (pt < 0 || pt_after < 0) {
+						return false
 					}
 
+					//pt <= max_increment = good
+					if (pt > max_increment) {
+						return false
+					}
+
+					return true
+				}
+				
+				var max_increment = check_round_incr(1-dot.increment)	
+				if (!check_validity(pt, pt_after, max_increment)) {
 					return {found: false, log: undefined}
 				}
-				
-				step_collision_check(0)
 
-				var d_sq_earlier = d_sq
-				var steps = 1
-				var checked_collision = undefined
-				while (Math.abs(o1_step_x)<Math.abs(o1_course_left_todo_x)) {
-					steps++
+				var incr_total = check_round_incr(dot.increment + pt)
+				var result = {found: true, log: {incr: incr_total,
+												 obj_1: dot,
+												 obj_2: border}
+							 }
 
-					checked_collision = step_collision_check(steps)
-
-					if (d_sq>=d_sq_earlier) {
-						return bind_results(false)
+				if (debug) {
+					if (incr_total>1) {
+						debugger
 					}
-					if (checked_collision) {
-				
-						var result_increment = calculate_result_on_increment(steps)
-						return bind_results(true, result_increment)
-					}
+				}
+				return result
+			} 
 
-					d_sq_earlier = d_sq
+			function find_collision_dots_2(dot_1, dot_2) {
 
-
+				if (dot_1.increment>dot_2.increment) {
+					var dot_temp = dot_1
+					dot_1 = dot_2
+					dot_2 = dot_temp
 				}
 				
-				if (final_collision_check()) {
+				// TODO: test box corners with sin/cos/tan
+				var box_1 = create_box_dot(dot_1)	
+				var box_2 = create_box_dot(dot_2)	
 
-					return bind_results(true, 1.00)
-				}
+				var result = doPolygonsIntersect(box_1, box_2) 
+		
+				var c = document.getElementById("my_canvas");
+				var ctx = c.getContext("2d");
+				ctx.moveTo(box_1[0].x,box_1[0].y);
+				ctx.lineTo(box_1[1].x,box_1[1].y);
+				ctx.lineTo(box_1[2].x,box_1[2].y);
+				ctx.lineTo(box_1[3].x,box_1[3].y);
+				ctx.lineTo(box_1[0].x,box_1[0].y);
+				ctx.stroke();
 
-				return bind_results(false)
-
-			} // end find_collision_dots function
-
-			function write_collision(obj_1, obj_2, incr) {
-				
-				choose_new_course_calculation(obj_1, obj_2, incr)
-				// obj_1.track_collision.manage_reset(obj_2)
-				// obj_1.track_collision.setter(obj_1, obj_2)
-
-				return
+				ctx.moveTo(box_2[0].x,box_2[0].y);
+				ctx.lineTo(box_2[1].x,box_2[1].y);
+				ctx.lineTo(box_2[2].x,box_2[2].y);
+				ctx.lineTo(box_2[3].x,box_2[3].y);
+				ctx.lineTo(box_2[0].x,box_2[0].y);
+				ctx.stroke();
 			}
+
+			/**
+			* Helper function to determine whether there is an intersection between the two polygons described
+			* by the lists of vertices. Uses the Separating Axis Theorem
+			*
+			* @param a an array of connected points [{x:, y:}, {x:, y:},...] that form a closed polygon
+			* @param b an array of connected points [{x:, y:}, {x:, y:},...] that form a closed polygon
+			* @return true if there is any intersection between the 2 polygons, false otherwise
+			*/
+			function doPolygonsIntersect (a, b, dot_1, dot_2) {
+				// TODO: refactor names
+				// TODO: can be done  more efficiently for rectangles, since they are parallel
+				var polygons = [a, b];
+				var minA, maxA, projected, i, i1, j, minB, maxB, min_edge;
+
+				for (i = 0; i < polygons.length; i++) {
+
+					// for each polygon, look at each edge of the polygon, and determine if it separates
+					// the two shapes
+					var polygon = polygons[i];
+					for (i1 = 0; i1 < polygon.length; i1++) {
+						
+						// no need to check an edge between
+						// nodes of a and b
+						// TODO: check if this addition is correct
+						if (i1==a.length-1) {
+							continue
+						}
+
+						// grab 2 vertices to create an edge
+						var i2 = (i1 + 1) % polygon.length;
+						var p1 = polygon[i1];
+						var p2 = polygon[i2];
+
+						// find the line perpendicular to this edge
+						var normal = { x: p2.y - p1.y, y: p1.x - p2.x };
+
+						minA = maxA = undefined;
+						// for each vertex in the first shape, project it 
+						// onto the line perpendicular to the edge
+						// and keep track of the min and max of these values
+						for (j = 0; j < a.length; j++) {
+							projected = normal.x * a[j].x + normal.y * a[j].y;
+							if (minA==undefined || projected < minA) {
+								minA = projected;
+							}	
+							if (maxA==undefined || projected > maxA) {
+								maxA = projected;
+							}
+						}
+
+						// for each vertex in the second shape, project it 
+						// onto the line perpendicular to the edge
+						// and keep track of the min and max of these values
+						minB = maxB = undefined;
+						for (j = 0; j < b.length; j++) {
+							projected = normal.x * b[j].x + normal.y * b[j].y;
+							if (minB==undefined || projected < minB) {
+									minB = projected;
+							}
+							if (maxB==undefined || projected > maxB) {
+								maxB = projected;
+							}
+						}
+
+						// if there is no overlap between the projects, the 
+						// edge we are looking at separates the two
+						// polygons, and we know there is no overlap
+						if (maxA < minB || maxB < minA) {
+							CONSOLE("polygons don't intersect!");
+							return false;
+						}
+
+						function get_interval_distance(min_a, max_a, min_b, max_b) {
+							if (min_a<min_b) {
+								return max_a-min_b
+							} else {
+								return max_b-min_a
+							}
+						}
+						
+						result_interval_distance = get_interval_distance(minA, maxA, minB, maxB)
+						if (result_interval_distance<min_interval_distance) {
+							min_interval_distance = result_interval_distance
+							min_edge = normal
+						}	
+						
+						var dx = dot_1.coords_theory.x - dot_2.coords_theory.x
+						var dy = dot_1.coords_theory.y - dot_2.coords_theory.y
+
+						projected = dx * min_edge.x + dy * min_edge.y
+
+						if (projected<0) {
+							normal.x = -normal.x
+							normal.y = -normal.y
+						}
+					}
+				}
+				return true;
+			};
+
+
+
+
+			function create_box_dot(dot) {
+				
+				var course_angle = Math.atan2(dot.course.y, dot.course.x)
+
+				var offset_side_1 = get_offset_dimensions_dot(dot, course_angle+0.5*Math.PI)
+				var offset_side_2 = get_offset_dimensions_dot(dot, course_angle-0.5*Math.PI)
+				
+				var offset_vector = get_offset_dimensions_dot(dot, course_angle)
+	
+				var start_center_x = dot.coords_theory.x - offset_vector.x 
+				var start_center_y = dot.coords_theory.y - offset_vector.y
+
+				var end_center_x = dot.next_coords_theory.x + offset_vector.x	
+				var end_center_y = dot.next_coords_theory.y + offset_vector.y	
+
+				var corners = []
+				for (var c=0;c<4;c++) {
+					corners.push({})
+				}
+
+				corners[0].x = start_center_x + offset_side_1.x	
+				corners[0].y = start_center_y + offset_side_1.y	
+				corners[1].x = start_center_x + offset_side_2.x	
+				corners[1].y = start_center_y + offset_side_2.y	
+				
+				corners[2].x = end_center_x + offset_side_2.x	
+				corners[2].y = end_center_y + offset_side_2.y	
+				corners[3].x = end_center_x + offset_side_1.x	
+				corners[3].y = end_center_y + offset_side_1.y	
+
+				return corners	
+			}
+
+			function get_offset_dimensions_dot(dot, new_angle) {
+				// TODO: dots may neve change shape, then this only has to be calculated once.
+				
+				var angle_new_x = Math.cos(new_angle)
+				var angle_new_y = Math.sin(new_angle)
+				
+				var offset_x = angle_new_x * dot.radius
+				var offset_y = angle_new_y * dot.radius
+
+				return {x: offset_x, y: offset_y}
+			}	
 
 			function choose_new_course_calculation(obj_1, obj_2, incr) {
 				
@@ -1000,7 +1302,12 @@ NICE TO HAVES:
 					var border = obj_1
 				}
 
-				// TODO: increment can be taken out
+				if (debug) {
+					if (dot.id==10 && debug_main_loop_counter>704) {
+
+					}
+				}	
+
 				var d_x = dot.course.x * incr
 				var d_y = dot.course.y * incr
 
@@ -1008,6 +1315,8 @@ NICE TO HAVES:
 				
 				if (border.side=="left" || border.side=="right") {
 					
+					//angle_old = Math.PI - angle_old	
+
 					var angle_old = Math.atan2(-d_y, -d_x)
 
 				}
@@ -1024,18 +1333,23 @@ NICE TO HAVES:
 
 				}
 
-				//var x_y_prop = dot.course.x / dot.course.y
-				//s_sq = x_sq + y_sq
-				//s_sq = x_sq + (x/x_y_p)_sq
-				//s_sq = (c*x)_sq + (c*x/x_y_p)_sq
-				//s_sq = c_sq * (x_sq + (x/x_y_p)_sq)
-				////sqrt(s_sq/c_sq) = x_sq + (x/x_y_p)_sq
-				//c_sq = s_sq / (x_sq + (x/x_y_p)_sq)
-
 				var x_y_prop = direction_x_new / direction_y_new
 				var c_sq = dot.speed_per_loop * dot.speed_per_loop / ( (direction_x_new * direction_x_new) + ( (direction_x_new / x_y_prop) * (direction_x_new/x_y_prop) ) ) 
 				var c = c_sq**(1/2)
 
+				if (debug) {
+					if (direction_x_new==0 || direction_y_new==0 || c==0) {
+						debugger
+					} 
+					var test_x = round_calc_general(direction_x_new * c)
+					var test_y = round_calc_general(direction_y_new * c)
+
+					if (test_x==0 || test_y==0) {
+						debugger
+					}
+
+				}
+				
 				dot.course.x = round_calc_general(direction_x_new * c)
 			    dot.course.y = round_calc_general(direction_y_new * c)	
 				
@@ -1045,12 +1359,10 @@ NICE TO HAVES:
 			function get_set_new_course_two_dots(dot_1, dot_2, incr) {
 
 				if (debug_coll) {
-					//var debug_check_list = [4,5,6]
-					//var check_list = []
 					for (var cl=0;cl<debug_check_list.length;cl++) {
 						var to_check = debug_check_list[cl]
 						if (dot_1.id==to_check || dot_2.id==to_check) {
-							debugger
+
 							break
 						}
 					}
@@ -1060,7 +1372,7 @@ NICE TO HAVES:
 				var dot_1_coll_y = dot_1.coords_theory["y"]
 				var dot_2_coll_x = dot_2.coords_theory["x"]
 				var dot_2_coll_y = dot_2.coords_theory["y"]
-
+				
 				var x_diff = dot_2_coll_x - dot_1_coll_x 
 				var y_diff = dot_2_coll_y - dot_1_coll_y				
 				var angle_coll = Math.atan2(y_diff, x_diff)
@@ -1102,28 +1414,13 @@ NICE TO HAVES:
 				dot_2.speed_per_loop = round_calc_general(Math.sqrt(Math.pow(result_2_x, 2) + Math.pow(result_2_y, 2)))
 				dot_2.speed = round_calc_general(dot_2.speed_per_loop * (1/(main_loop_interval/1000)))
 					
-				//////////////////////
-				// var kin_before = (0.5 * mass_1 * vel_1**2) + (0.5 * mass_2 * Math.pow(vel_2, 2))	
-				// var kin_after = (0.5 * mass_1 * dot_1.speed_per_loop**2) + (0.5 * mass_2 * dot_2.speed_per_loop**2)
-
-				//console.log("kin energy before | after \n" + kin_before + " | " + kin_after)
-
-				//console.log("proportion d1 y/x | d2 y/x: " + (result_1_y/result_1_x) + " | " + (result_2_y/result_2_x)) 
-
 				return
 			}
 			
-			function sort_grid_positions(grid_positions) {
+			function grid_sort_positions(grid_positions) {
 				// NOTE: insertion sort is performed here, because
-				// it is the algorithm if choice when the array is
+				// it is the algorithm of choice when the array is
 				// almost sorted.
-				// NOTE: an addition could be added here for the
-				// newly added dot, since this could be an outlier
-				// that could slow the algorithm down. But that's
-				// only necessary when you don't throw the list
-				// away after every loop. Which they aren't. 
-				// TODO: a good unit test seems easy to write for 
-				// this.
 
 				for (var i=1;i<grid_positions.length;i++) {
 					for (var k=i;k>0;k--) {
@@ -1155,8 +1452,7 @@ NICE TO HAVES:
 				return
 			}
 
-			function sort_collision_storage(collision_storage) {
-				// TODO: untested
+			function sort_collision_time(collision_storage) {
 				for (var i=1;i<collision_storage.length;i++) {
 					for (var k=i;k>0;k--) {
 						if (collision_storage[k-1]["incr"]>collision_storage[k].incr) {
@@ -1170,8 +1466,6 @@ NICE TO HAVES:
 			}
 			
 			function swap_in_list(list, first, second) {
-				// TODO: make this a callable function
-				// from the array
 				var temp = list[first]
 				list[first] = list[second]
 				list[second] = temp
@@ -1204,9 +1498,7 @@ NICE TO HAVES:
 				return
 			}
 
-			// horrible horrible horrible
 			function set_border_positions(grid_border_positions, border_objects) {
-				// TODO: this is some obvious messy stuff				
 				get_grid_line_1(grid_border_positions, border_objects[0])
 				get_grid_line_2(grid_border_positions, border_objects[1])
 				get_grid_line_1(grid_border_positions, border_objects[2])
@@ -1237,8 +1529,6 @@ NICE TO HAVES:
 
 				var options = {left: 1, right: Math.ceil(end.x/section_size.x)}	
 
-				// NOTE: this is just to keep it very very simple,
-				// will have to deploy the grid function here.
 				var grid_start = Math.ceil(start.y/section_size.y)
 				var grid_end = Math.ceil(end.y/section_size.y)
 				for (var gr=grid_start;gr<=grid_end;gr++) {
@@ -1271,11 +1561,6 @@ NICE TO HAVES:
 				}
 
 				var options = {bottom: 1, ceiling: Math.ceil(500/section_size.y)}	
-
-				// NOTE: this is just to keep it very very simple,
-				// will have to deploy the grid function here.
-				
-				// skip first because that's already in the first one
 				var grid_start = Math.ceil(start.x/section_size.x)
 				var grid_end = Math.ceil(end.x/section_size.x)
 				for (var gr=grid_start;gr<=grid_end;gr++) {
@@ -1294,7 +1579,6 @@ NICE TO HAVES:
 					this.id = id
 					this.dot_spot = dot_spot 
 					this.grid_spots = []
-					// this.track_collision = new Track_collision
 					this.next_coords_theory = {} 
 					this.increment = 0					// 0 means hasn't moved yet this loop
 					// dot shape information
@@ -1317,11 +1601,11 @@ NICE TO HAVES:
 
 					if (debug_coll) {
 						if (this.id==1) {
-							this.speed = 25
+							this.speed = 925
 						} else if (this.id==2) {
-							this.speed = 60
+							this.speed = 660
 						} else if (this.id==3) {
-							this.speed = 60
+							this.speed = 360
 						} else if (this.id==4) {
 							this.speed = 683
 						} else if (this.id==5) {
@@ -1331,15 +1615,14 @@ NICE TO HAVES:
 						}
 					}
 
-					this.speed_per_loop = this.speed/(1/(main_loop_interval/1000))
+					this.speed_per_loop = round_calc_general(this.speed/(1/(main_loop_interval/1000)))
 					return
 				}
 
 				set_course() {
 					// var x = Math.random()
 					// var y = Math.random()
-					
-					// TODO: icw convert course this is a meaningless metric
+
 					var x = .5
 					var y = .6
 
@@ -1366,17 +1649,36 @@ NICE TO HAVES:
 					}
 
 					this.course = this.convert_course(x, y)
-					this.coords_theory = {x: round_calc_general(this.course["x"]+starting_point.x), y: round_calc_general(this.course["y"]+starting_point.y)}
+					this.coords_theory = {x: round_calc_general(this.course["x"]+starting_point.x), 
+										  y: round_calc_general(this.course["y"]+starting_point.y)}
 					this.coords = {x: Math.round(this.coords_theory["x"]), y: Math.round(this.coords_theory["y"])}
+
+					if (debug_specific) {
+						if (this.id==1) {
+							this.course = {x: 19.4562063, y: 0.77704052}
+							this.coords_theory = {x: 462.75462212, y: 475.56497464}
+							this.coords = {x: Math.round(this.coords_theory["x"]), 
+										   y: Math.round(this.coords_theory["y"])}
+							this.increment = 0.036 
+							this.speed_per_loop = 19.47171681
+						} else if (this.id==2) {
+							this.course = {x: 36.30442919, y: 55.09223259}
+							this.coords_theory = {x: 422.03802785, y: 454.94685177}
+							this.coords = {x: Math.round(this.coords_theory["x"]), 
+										   y: Math.round(this.coords_theory["y"])}
+							this.increment = 0.426
+							this.speed_per_loop = 65.97852431
+						}
+					}
 
 					return
 				}
 
 				convert_course(x, y) {
 					var c_sq = Math.pow(this.speed_per_loop, 2) / (Math.pow(x, 2) + Math.pow(y, 2))
-					var c = Math.sqrt(c_sq)
+					var c = round_calc_general(Math.sqrt(c_sq))
 
-					return {x: c*x, y: c*y}
+					return {x: round_calc_general(c*x), y: round_calc_general(c*y)}
 				}
 
 				create_dot() {
@@ -1397,6 +1699,12 @@ NICE TO HAVES:
 					if (demo_mode) {
 						if (this.id==3) {
 							drawing.fillStyle = "#AA0000"	
+						}
+						if (this.id==4) {
+							drawing.fillStyle = "#00AA00"	
+						}
+						if (this.id==5) {
+							drawing.fillStyle = "#0000AA"	
 						}
 					}
 					
@@ -1430,32 +1738,23 @@ NICE TO HAVES:
                     dot_canvas.width = center*2
                     dot_canvas.height = center*2
 
-                    // dot_canvas.style.background = "red";
                     document.getElementById("circle").appendChild(dot_canvas)
 
                     return dot_canvas
 			
 				}
-				
+
 				move() {
 					var dot_canvas = document.getElementById("dot_" + this.id)	
 					dot_canvas.style.left = this.coords["x"] + "px"
 					dot_canvas.style.top = this.coords["y"] + "px"
 					
-					if (debug) {
-						if (this.coords.x>500 
-				         || this.coords.y>500
-						 || this.coords.x<0 
-						 || this.coords.y<0) {
-							//console.log(this.coords.x + " | " + this.coords.y)
-							
-
-						}
+					if (debug_showstoppers) {
+						check_dots_going_outside(this)
 					}
-
 					return
 				}
-
+				
 				set_coords() {
 					this.coords_theory["x"] = this.next_coords_theory["x"] 
 					this.coords_theory["y"] = this.next_coords_theory["y"]
@@ -1466,10 +1765,6 @@ NICE TO HAVES:
 				}
 			
 				determine_next_coords() {
-					// NOTE: this way course does not have to be used when 
-					// storing the new current coords. So setting the new course
-					// does not effect the current course.
-					
 					this.next_coords_theory["x"] = round_calc_general(this.coords_theory["x"] + this.course["x"])
 					this.next_coords_theory["y"] = round_calc_general(this.coords_theory["y"] + this.course["y"])
 
@@ -1477,18 +1772,14 @@ NICE TO HAVES:
 				}
 
 				manage_sections_setting() {
-					// TODO: this should not have to be cleared here
-					// although, why not, after collision it could
-					// be handy, but no, then clear it especially for
-					// here
 					this.grid_spots = []
-					
+
 					// start situation
 					this.get_set_section(this.coords_theory)
-					
+
 					// for end situation
 					this.get_set_section(this.next_coords_theory)
-					
+
 					// get square in grid from minimum and maximum 
 					// position in start and end situation
 					this.determine_all_sections()	
@@ -1497,7 +1788,6 @@ NICE TO HAVES:
 				}
 			
 				determine_all_sections() {
-					// TODO: only tested a crude happyflow
 					var x_min = Infinity 
 					var y_min = Infinity
 					var x_max = -Infinity
@@ -1535,7 +1825,6 @@ NICE TO HAVES:
 				}
 
 				get_set_section(coords) {
-
 					this.grid_spots.push(this.calc_section(coords["x"], 
 														   coords["y"]))
 
@@ -1550,7 +1839,6 @@ NICE TO HAVES:
 																  coords["y"] + y_ce)
 						
 						this.grid_spots.push(grid_section_next)
-
 					}
 
 					return
@@ -1559,7 +1847,6 @@ NICE TO HAVES:
 				calc_section(coord_x, coord_y) {
 					var section_x = coord_x / section_size["x"]
 					var section_y = coord_y / section_size["y"]
-					
 					var grid_section_x = Math.floor(section_x+1)
 					var grid_section_y = Math.floor(section_y+1)
 					
@@ -1567,11 +1854,10 @@ NICE TO HAVES:
 							y: grid_section_y}
 				}
 
+
 			} // end Dot class
 
 			class Track_collision {
-				// NOTE: Used to track only the last collision.
-				// TODO: work here with super, extend and stuff?
 				constructor() {
 					this.set= false
 					this.obj_1 = undefined
@@ -1595,8 +1881,6 @@ NICE TO HAVES:
 						this.reset_clean()
 					} 
 					
-					// if code directly code didn't reset other_dot
-					// do the reset for that dot also.	
 					if (other_obj.track_collision.set) {
 						other_obj.track_collision.reset_clean()
 					}
@@ -1624,7 +1908,6 @@ NICE TO HAVES:
 
 					return false
 				}
-
 			} // end Track_collision class
 
 		</script>
@@ -1636,15 +1919,16 @@ NICE TO HAVES:
 
 		<div id="circle" style="position:relative;">
 		
-		<!--<div id="timer_div">0</div>//-->
-
-		<!--
 			<div id="timer_div" style="position:absolute; text-align:center; bottom:0; color:red;">0</div>
-		//-->
 
 		</div>
+
 	</body>
 
 </html>
+
+
+
+
 
 
