@@ -1,27 +1,30 @@
 # flying-dots
 
 
-Dennis Zethof - Februari 2018
+	Dennis Zethof - Januari 2019
 
-	v0.45
+	v0.60
 
-	NOTE: The main focus of this specific project is to get the 
+	The main focus of this specific project is to get the
 	collision detection algorithm right, this is a test setup,
-	and by all means not finished. It is not efficient enough,
-	and not without bugs. However, right now you can run it
-	for quite a while, and I've seen no dots leaving their box
-	or overlap eachother (except on their spawning area in the 
-	upper left corner, they overlap there at first). The goal is to 
-	let the box be fully filled with dots until none can be added. 
-	I have removed most of the comments because they would
-	clutter the code and where not written to be read by others.	
-	
-	Algorithms: this code scans all the dots, determines if there 
-	will be any collisions, performs the collision earliest in time, 
-	reevaluates the new situation caused by the collision, then
-	performs the next earliest collision, reevaluates etc.
-	
-	By default the amount of dots is set at 80, you can easily set
-	"settings_maximum_dots" to about 150. Ofcourse that may not run 
-	as smooth.
+	and by all means not finished.
+
+	Got it to run quite a bit more efficient. The main 
+	improvements were in the functions:
+
+	-get_rounded_number
+	-remove_old_grid_positions
+	-weave_grids_together
+	-check_redo_position (now with hash maps)
+	-remove some rounding calls
+
+	Algorithms: this code scans all the dots, determines if there
+	will be any collisions, performs the collision earliest in time,
+	re-evaluates the new situation caused by the collision, then
+	performs the next earliest collision, re-evaluates etc.
+
+	By default the amount of dots is set at 100, you can easily set
+	"settings_maximum_dots" to about 150. But that may not run 
+	as smooth. Similarly the speed can be adjusted by searching for
+	"set_speed".
 
