@@ -3,7 +3,7 @@ flying-dots
 
 *Dennis Zethof - Januari 2019*
 
-Can be visited at [dzet.github.io].
+Can be visited at druqtemaker.com[1].
 
 General info
 ------------
@@ -36,4 +36,4 @@ improvements were in the functions:
 and lessened the amount of calls get_rounded_number got.
 
 
-[dzet.github.io]: https://dzet.github.io
+[1]: https://druqtemaker.com
