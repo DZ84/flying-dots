@@ -3,7 +3,7 @@ flying-dots
 
 *Dennis Zethof - Januari 2019*
 
-Can be visited at (druqtemaker.com)[1].
+Can be visited at [druqtemaker.com][1].
 
 General info
 ------------
