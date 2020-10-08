@@ -36,4 +36,4 @@ improvements were in the functions:
 and lessened the amount of calls get_rounded_number got.
 
 
-[1]: https://druqtemaker.com
+[1]:https://druqtemaker.com/projects-flying-dots.html
